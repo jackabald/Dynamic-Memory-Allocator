@@ -101,9 +101,7 @@ int alloc_size;
  * Additional global variables may be added as needed below
  * TODO: add global variables needed by your function
  */
-
-
-
+blockHeader* heap_end = (blockHeader*)((char*)heap_start + alloc_size);
 
 /* 
  * Function for allocating 'size' bytes of heap memory.
@@ -148,12 +146,11 @@ void* balloc(int size) {
     if(blockSize % 8 != 0){
         blockSize += 8 - (blockSize % 8);
     }
-
     blockHeader* bestFit = NULL;
     blockHeader* current = heap_start;
-    blockHeader* end = (blockHeader*)((char*)heap_start + alloc_size);
+    //blockHeader* end = (blockHeader*)((char*)heap_start + alloc_size);
 
-    while (current < end){
+    while (current < heap_end){
         if(!(current->size_status % 2) && current->size_status >= blockSize && 
         (bestFit == NULL || current->size_status < bestFit->size_status)){
             bestFit = current;
@@ -216,10 +213,18 @@ void* balloc(int size) {
  *      Submit code that passes partA and partB to Canvas before continuing.
  */                    
 int bfree(void *ptr) {    
-    //TODO: Your code goes in here.
+    if(ptr == NULL || ptr % 8 != 0 || heap_start > ptr || heap_end < ptr){
+        return -1;
+    }
+    // check if ptr is already freed
+    blockHeader *header = (blockHeader *)ptr;
+    if(header->size_status % 2 == 0){
+        return -1;
+    }
+    // free and coalesce
+    header->size_status -= 1;
     return -1;
 } 
-
 
 /* 
  * Initializes the memory allocator.
