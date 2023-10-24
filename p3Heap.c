@@ -159,9 +159,7 @@ void* balloc(int size) {
 				if (next_header < (blockHeader*)((char*)heap_start + alloc_size)) {
 					next_header->size_status = next_header->size_status | 2;
 				}
-                //Returns address of the payload in the allocated block on success
 				return (void*)(current + 1);
-            //if the size of curr block is greater than totalSize, we can firstly to store it as the bestfit one
 			} else if (extraMemory > 0){  
 				if (bestFit == NULL)
 					bestFit = current;
@@ -170,9 +168,7 @@ void* balloc(int size) {
 				}
 			}
 		}
-        //to make the curr pointer to the next pointer
 		current = (blockHeader*)((char*)current + (current->size_status & (~3)));
-        //if curr exceed the max range, then break it
 		if (current >= (blockHeader*)((char*)heap_start + alloc_size)) {
 			if (bestFit == NULL) {
                 //Returns NULL on failure
@@ -190,7 +186,7 @@ void* balloc(int size) {
 					footer->size_status = extraMemory2;
 					bestFit->size_status = blockSize | 3;
 				}
-                //Returns address of the payload in the allocated block on success
+                //Returns address of the payload of the allocated block on success
 				return (void*)(bestFit + 1);
 			}
 		}
