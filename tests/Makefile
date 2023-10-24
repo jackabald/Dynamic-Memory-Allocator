@@ -35,8 +35,8 @@ partC:
 	./test303  #5 allocs, fill with allocs, free three adj blocks, alloc succeeds
 
 partD:  #immediate coalesce with next and prev
-	.test401  #4 allocs, fill with allocs, free immed coal with prev, alloc succeeds
-	.test402  #fill with allocs, one free, alloc fail, adj free, alloc success
+	./test401  #4 allocs, fill with allocs, free immed coal with prev, alloc succeeds
+	./test402  #fill with allocs, one free, alloc fail, adj free, alloc success
 
 # Remove all generated target files (executables)
 # Use before running make to get a clean re-build of all targets.

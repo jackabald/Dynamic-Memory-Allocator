@@ -85,7 +85,7 @@ typedef struct blockHeader {
      */
     int size_status;
 
-} blockHeader;         
+} blockHeader;
 
 /* Global variable - DO NOT CHANGE NAME or TYPE. 
  * It must point to the first block in the heap and is set by init_heap()
@@ -101,7 +101,6 @@ int alloc_size;
  * Additional global variables may be added as needed below
  * TODO: add global variables needed by your function
  */
-blockHeader* heap_end = (blockHeader*)((char*)heap_start + alloc_size);
 
 /* 
  * Function for allocating 'size' bytes of heap memory.
@@ -148,48 +147,55 @@ void* balloc(int size) {
     }
     blockHeader* bestFit = NULL;
     blockHeader* current = heap_start;
-    //blockHeader* end = (blockHeader*)((char*)heap_start + alloc_size);
 
-    while (current < heap_end){
-        if(!(current->size_status % 2) && current->size_status >= blockSize && 
-        (bestFit == NULL || current->size_status < bestFit->size_status)){
-            bestFit = current;
-        }
-        current = (blockHeader*)((char*)current + ((current->size_status / 8) * 8));
+    while (1) {
+		// if current block is free
+		if ((current->size_status & 1) == 0) {
+			int extraMemory = (current->size_status & ~3) - blockSize;
+            //if blockSize is equal to current block size, it is the best fit        
+			if (extraMemory == 0){
+				current->size_status = current->size_status |1;
+				blockHeader* next_header = (blockHeader*)((char*)current + (current->size_status & (~3)));
+				if (next_header < (blockHeader*)((char*)heap_start + alloc_size)) {
+					next_header->size_status = next_header->size_status | 2;
+				}
+                //Returns address of the payload in the allocated block on success
+				return (void*)(current + 1);
+            //if the size of curr block is greater than totalSize, we can firstly to store it as the bestfit one
+			} else if (extraMemory > 0){  
+				if (bestFit == NULL)
+					bestFit = current;
+				else if (bestFit->size_status > current->size_status) {
+					bestFit = current;
+				}
+			}
+		}
+        //to make the curr pointer to the next pointer
+		current = (blockHeader*)((char*)current + (current->size_status & (~3)));
+        //if curr exceed the max range, then break it
+		if (current >= (blockHeader*)((char*)heap_start + alloc_size)) {
+			if (bestFit == NULL) {
+                //Returns NULL on failure
+				return NULL;
+			}  else {
+				int extraMemory2 = (bestFit->size_status & ~3) - blockSize;
+                bestFit->size_status = bestFit->size_status | 1;
+				blockHeader*nextHeader = (blockHeader*)((char*)bestFit + (bestFit->size_status &~3));
+				if (nextHeader < (blockHeader*)((char*)heap_start + alloc_size)) {
+						nextHeader->size_status = nextHeader->size_status | 2;
+				} else {
+					blockHeader* header =(blockHeader*)((char*)bestFit+ blockSize);
+					header->size_status = extraMemory2 | 2;
+					blockHeader* footer = (blockHeader*)((char*)bestFit + blockSize + extraMemory2 - sizeof(blockHeader));
+					footer->size_status = extraMemory2;
+					bestFit->size_status = blockSize | 3;
+				}
+                //Returns address of the payload in the allocated block on success
+				return (void*)(bestFit + 1);
+			}
+		}
     }
 
-    if (bestFit == NULL){
-        // no block found
-        return NULL;
-    }
-    if(bestFit->size_status == blockSize){
-        // exact size match update headers and return payload address
-        bestFit->size_status += 1;
-        return (void*)(bestFit +1);
-    }else{
-        // split and return payload address
-        int originalSize = bestFit->size_status;
-        int remainingSize = originalSize - blockSize;
-
-        blockHeader* allocatedBlock = bestFit;
-        allocatedBlock->size_status = blockSize + 1;   
-
-        blockHeader* freeBlock = (blockHeader*)((char*)bestFit + blockSize);
-        freeBlock->size_status = remainingSize;
-
-        // update previous block status
-        blockHeader* nextBlock = (blockHeader*)((char*)freeBlock + remainingSize);
-        if(nextBlock->size_status % 2){
-            freeBlock->size_status += 2;
-        }
-        // update footer of free block
-        blockHeader* footer = (blockHeader*)((char*)freeBlock +remainingSize - sizeof(blockHeader));
-        footer->size_status = remainingSize;
-
-        return (void*)(bestFit + 1);
-    }
-
-    return NULL;
 } 
 
 /* 
@@ -212,19 +218,55 @@ void* balloc(int size) {
  *      can pass the tests in partA and partB of tests/ directory.
  *      Submit code that passes partA and partB to Canvas before continuing.
  */                    
-int bfree(void *ptr) {    
-    if(ptr == NULL || ptr % 8 != 0 || heap_start > ptr || heap_end < ptr){
+int bfree(void *ptr) { 
+    // check if null
+    if(ptr == NULL){
         return -1;
     }
-    // check if ptr is already freed
-    blockHeader *header = (blockHeader *)ptr;
-    if(header->size_status % 2 == 0){
+    // check if not 8 btye aligned
+    if((int)ptr % 8 != 0){
         return -1;
     }
-    // free and coalesce
-    header->size_status -= 1;
-    return -1;
-} 
+    // check if allocated outisde the heap space
+    if((blockHeader*)ptr > (blockHeader*)((char*)heap_start + alloc_size)|| (blockHeader*)ptr < heap_start){
+        return -1;
+    }
+    // check if already freed
+    blockHeader* block = (blockHeader*)((char*)ptr - sizeof(blockHeader));
+    if(block->size_status % 2 != 1){
+        return -1;
+    }
+
+    // mark this block as free
+    blockHeader* currentHeader = (blockHeader*)((char*)ptr - sizeof(blockHeader));
+    blockHeader* currentFooter = (blockHeader*)((char*)currentHeader + (currentHeader->size_status & ~3) - sizeof(blockHeader));
+    currentHeader->size_status = currentHeader->size_status & ~1;
+	currentFooter->size_status = currentHeader->size_status & ~3;
+
+    // find next header and update
+    blockHeader* next =(blockHeader*)((char*)currentFooter + sizeof(blockHeader));
+	if (next < (blockHeader*)((char*)heap_start + alloc_size)) {
+		next->size_status = next->size_status & ~2;
+	}
+
+    //coalesce prev block if free and update headers
+    if ((currentHeader->size_status & 2) == 0) {
+		blockHeader* previousFooter = (blockHeader*)((char*) currentHeader - sizeof(blockHeader));
+		blockHeader* previousHeader = (blockHeader*)((char*)previousFooter - previousFooter->size_status + sizeof(blockHeader));
+		previousHeader->size_status = ((previousFooter->size_status & ~3) + (currentHeader->size_status & ~3)) | 2;
+		currentHeader = previousHeader;
+		currentFooter->size_status = currentHeader->size_status & ~3;
+	}
+    // coaleses next block if free and update headers
+    blockHeader* nextHeader = (blockHeader*)((char*)currentHeader + (currentHeader->size_status &~3));
+	if ((nextHeader < (blockHeader*)((char*)heap_start + alloc_size)) && (nextHeader->size_status & 1) == 0) {
+		blockHeader* nextFooter = (blockHeader*)((char*)nextHeader + (nextHeader->size_status &~3) -sizeof(blockHeader));
+		currentFooter = nextFooter;
+		currentHeader->size_status =((nextHeader->size_status &~3) + (currentHeader->size_status &~3)) | 2;
+		currentFooter->size_status = currentHeader->size_status &~3;
+	}
+    return 0;
+}
 
 /* 
  * Initializes the memory allocator.

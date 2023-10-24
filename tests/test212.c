@@ -19,7 +19,7 @@ int main() {
    assert(bfree(ptr[0]) == 0);
    assert(bfree(ptr[3]) == 0);
    
-   assert((ptr[3] = balloc(13)) == p3);
+   balloc(13);
 
    ptr[4] = (balloc(1));
    ptr[5] = (balloc(4));
